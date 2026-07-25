@@ -1,0 +1,141 @@
+name: Pull Request Validation
+
+# Quality gate: se ejecuta al abrir/actualizar un PR y también es reutilizable
+# (workflow_call) desde los workflows de CI y CD para no duplicar pasos.
+#
+# IMPORTANTE (seguridad): los jobs que necesitan DATABRICKS_HOST/DATABRICKS_TOKEN
+# (bundle-validate y bundle-validate-prod) NUNCA deben ejecutarse en el evento
+# `pull_request` directo (incluye PRs desde forks externos, donde no se debe
+# exponer ningún secreto). Por eso están protegidos con `if: inputs.*` y esos
+# inputs solo pueden ser `true` cuando el workflow es invocado vía
+# `workflow_call` desde continuous-integration.yml / continuous-deployment.yml.
+# En un `pull_request` directo, el contexto `inputs` no se puebla, así que la
+# condición se evalúa como falsa y esos jobs se saltan automáticamente.
+on:
+  pull_request:
+    branches: [develop, main]
+  workflow_call:
+    inputs:
+      run_bundle_validate:
+        description: >-
+          Habilita el job bundle-validate (target dev). Debe activarse SOLO
+          desde CI/CD (workflow_call); nunca desde pull_request directo, para
+          no exponer DATABRICKS_TOKEN/DATABRICKS_HOST a PRs (incluidos forks).
+        required: false
+        type: boolean
+        default: false
+      run_bundle_validate_prod:
+        description: >-
+          Habilita el job bundle-validate-prod (target prod, fail-fast). Debe
+          activarse SOLO desde continuous-deployment.yml.
+        required: false
+        type: boolean
+        default: false
+    # ADVERTENCIA (fuente única de verdad, ver adr/0003-gestion-de-secretos.md):
+    # estos secretos deben definirse como secretos de REPOSITORIO/ORGANIZACIÓN
+    # (los reenvían explícitamente los jobs `validate` de continuous-integration.yml
+    # y continuous-deployment.yml). NO crear secretos homónimos dentro de los
+    # Environments `dev`/`prod` de GitHub: los jobs de este workflow que sí
+    # declaran `environment:` (bundle-validate, bundle-validate-prod) los
+    # resolverían automáticamente y podrían no coincidir con los reenviados aquí.
+    secrets:
+      DATABRICKS_HOST:
+        required: false
+      DATABRICKS_TOKEN:
+        required: false
+
+concurrency:
+  group: pr-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gates:
+    name: Lint · Format · Tests · Coverage
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r 02-development-environment/requirements-dev.txt
+
+      - name: Lint (Ruff)
+        run: ruff check .
+
+      - name: Format check (Black)
+        run: black --check .
+
+      - name: Tests + coverage (common >= 90%)
+        run: pytest --cov=common --cov-report=term-missing --cov-report=xml --cov-fail-under=90
+
+      - name: Checklist de buenas prácticas
+        run: python 10-automation-scripts/check_best_practices.py
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: coverage.xml
+          if-no-files-found: ignore
+
+  bundle-validate:
+    name: Validar Databricks Bundle (target dev)
+    # Solo se ejecuta cuando este workflow es llamado vía workflow_call desde
+    # CI/CD con run_bundle_validate=true. Nunca en pull_request directo (ver
+    # nota de seguridad arriba): así DATABRICKS_TOKEN/HOST no quedan expuestos
+    # a PRs externos.
+    if: inputs.run_bundle_validate
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Databricks CLI
+        uses: databricks/setup-cli@v0.221.1 # fijar a SHA en producción
+
+      - name: Bundle validate (target dev)
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: databricks bundle validate --target dev
+
+  bundle-validate-prod:
+    name: Validar Databricks Bundle (target prod, fail-fast)
+    # Solo se ejecuta cuando este workflow es llamado vía workflow_call desde
+    # continuous-deployment.yml con run_bundle_validate_prod=true. Se usa el
+    # environment "prod" para que las protecciones (p. ej. required reviewers)
+    # también apliquen aquí. El objetivo es detectar un bundle roto en prod
+    # ANTES de llegar al job de deploy, sin exponer secretos en pull_request.
+    if: inputs.run_bundle_validate_prod
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Databricks CLI
+        uses: databricks/setup-cli@v0.221.1 # fijar a SHA en producción
+
+      - name: Bundle validate (target prod)
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: databricks bundle validate --target prod

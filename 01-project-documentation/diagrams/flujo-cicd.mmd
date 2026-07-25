@@ -1,0 +1,11 @@
+flowchart TD
+    DEV[Developer] -->|push feature| PR[Pull Request]
+    PR --> V{Pull Request Validation}
+    V -->|Ruff · Black · pytest · coverage · checklist · bundle validate| OK{Verde?}
+    OK -->|No| PR
+    OK -->|Si| MD[Merge a develop]
+    MD --> CI[Continuous Integration]
+    CI -->|deploy dev + run job| DBXD[(Databricks dev)]
+    DBXD --> MM[Merge develop a main]
+    MM --> CD[Continuous Deployment]
+    CD -->|validaciones · deploy prod · run · artefactos| DBXP[(Databricks prod)]

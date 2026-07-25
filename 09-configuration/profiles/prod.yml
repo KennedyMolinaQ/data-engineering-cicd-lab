@@ -1,0 +1,6 @@
+# Perfil de entorno: producción
+entorno: prod
+catalogo: prod
+ruta_datos: /Volumes/prod/ventas/entrada/ventas.csv
+notificaciones:
+  email: ""

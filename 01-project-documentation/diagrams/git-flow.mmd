@@ -1,0 +1,13 @@
+gitGraph
+   commit id: "init"
+   branch develop
+   checkout develop
+   commit id: "setup"
+   branch feature/pipeline-ventas
+   commit id: "etl"
+   commit id: "tests"
+   checkout develop
+   merge feature/pipeline-ventas id: "PR + CI"
+   commit id: "deploy dev"
+   checkout main
+   merge develop id: "release + CD prod"

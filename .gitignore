@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Test & coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+05-code-quality/reports/*
+!05-code-quality/reports/.gitkeep
+
+# Tooling
+.ruff_cache/
+.mypy_cache/
+
+# Secrets & environment  (NUNCA subir credenciales)
+.env
+*.env
+!*.env.example
+09-configuration/.env
+
+# Databricks
+.databricks/
+databricks.yml.bak
+
+# Data generada (los datos de muestra versionados están en 08-sample-data)
+08-sample-data/delta/*
+!08-sample-data/delta/.gitkeep
+spark-warehouse/
+metastore_db/
+derby.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+
+# Herramientas de Claude Code (no forman parte del laboratorio)
+.claude/

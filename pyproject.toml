@@ -1,0 +1,54 @@
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "data-engineering-cicd-lab"
+version = "0.1.0"
+description = "Laboratorio de CI/CD para Ingeniería de Datos con GitHub Actions y Databricks."
+readme = "README.md"
+requires-python = ">=3.11"
+
+# ----------------------------------------------------------------------------
+# pytest: dónde están el código fuente y las pruebas
+# ----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+pythonpath = ["03-data-pipeline/src", "09-configuration"]
+testpaths = ["04-unit-tests"]
+markers = [
+    "integration: pruebas que requieren una SparkSession local (más lentas)",
+]
+addopts = "-ra"
+
+# ----------------------------------------------------------------------------
+# Cobertura: el gate estricto se aplica a la lógica pura de negocio (common)
+# ----------------------------------------------------------------------------
+[tool.coverage.run]
+branch = true
+source = ["common"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+# ----------------------------------------------------------------------------
+# Black: formateo determinista
+# ----------------------------------------------------------------------------
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+# ----------------------------------------------------------------------------
+# Ruff: linting (reglas en 05-code-quality/ruff.toml se alinean con esto)
+# ----------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["03-data-pipeline/src", "09-configuration", "04-unit-tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "N"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["common", "utilities", "jobs"]
