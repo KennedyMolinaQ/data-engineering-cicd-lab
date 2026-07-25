@@ -21,23 +21,19 @@ SRC = Path(__file__).resolve().parents[1]  # .../03-data-pipeline/src
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from pyspark.sql import functions as F  # noqa: E402, N812  (alias idiomático de PySpark)
-
 from common.validaciones import faltan_columnas  # noqa: E402
 from utilities.io import leer_csv  # noqa: E402
 from utilities.spark_session import obtener_spark  # noqa: E402
-from utilities.transformaciones_spark import transformar_ventas  # noqa: E402
+from utilities.transformaciones_spark import (  # noqa: E402
+    filtrar_filas_validas,
+    transformar_ventas,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger("ventas_diarias")
 
 # Ruta a los datos de muestra, relativa a la raíz del repositorio.
 RUTA_VENTAS = SRC.parents[1] / "08-sample-data" / "csv" / "ventas.csv"
-
-# Filas válidas: misma regla de negocio que common.validaciones.validar_cantidad
-# (cantidad entera > 0) y validar_precio (precio_unitario >= 0), expresada como
-# condición nativa de Spark para poder filtrar a escala.
-_CONDICION_FILA_VALIDA = (F.col("cantidad") > 0) & (F.col("precio_unitario") >= 0)
 
 
 def run(ruta_csv: str | None = None) -> int:
@@ -58,7 +54,7 @@ def run(ruta_csv: str | None = None) -> int:
     # Se cachea porque se necesitan dos conteos (total y válidas) sobre la
     # misma lectura, para poder loggear cuántas filas inválidas se descartan.
     ventas.cache()
-    ventas_validas = ventas.filter(_CONDICION_FILA_VALIDA)
+    ventas_validas = filtrar_filas_validas(ventas)
     filas_descartadas = ventas.count() - ventas_validas.count()
     if filas_descartadas:
         logger.warning(

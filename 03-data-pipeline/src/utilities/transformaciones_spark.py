@@ -47,3 +47,16 @@ def transformar_ventas(df: DataFrame) -> DataFrame:
             .otherwise(F.lit(CATEGORIA_BAJO)),
         )
     )
+
+
+def filtrar_filas_validas(df: DataFrame) -> DataFrame:
+    """Filtra filas con ``cantidad`` > 0 y ``precio_unitario`` >= 0.
+
+    Misma regla de negocio que ``common.validaciones.validar_cantidad`` /
+    ``validar_precio``, expresada como condición nativa de Spark para filtrar a
+    escala. Se define aquí (capa ``utilities``, dependiente de PySpark) y NO como
+    constante a nivel de módulo del job: ``F.col`` requiere un ``SparkContext``
+    activo, así que construir la condición dentro de una función evita que
+    importar el job falle sin una sesión de Spark iniciada.
+    """
+    return df.filter((F.col("cantidad") > 0) & (F.col("precio_unitario") >= 0))

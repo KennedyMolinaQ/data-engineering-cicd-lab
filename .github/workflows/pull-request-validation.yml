@@ -58,7 +58,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        # PySpark 3.5.1 soporta oficialmente Python 3.8–3.11; en 3.12 las
+        # pruebas de integración con Spark fallan. Se fija 3.11, alineado con
+        # el runtime de Databricks.
+        python-version: ["3.11"]
 
     steps:
       - name: Checkout
@@ -69,6 +72,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+
+      - name: Set up Java (requerido por PySpark para las pruebas de integración)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
       - name: Install dependencies
         run: |

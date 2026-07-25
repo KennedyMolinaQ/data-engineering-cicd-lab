@@ -1,18 +1,17 @@
 """Pruebas del orquestador ``jobs.ventas_diarias.run()`` con dobles de prueba.
 
-IMPORTANTE (honestidad sobre PySpark): ``jobs/ventas_diarias.py`` importa
-``pyspark.sql.functions`` a NIVEL DE MÓDULO (para construir la constante
-``_CONDICION_FILA_VALIDA``), así que este archivo necesita PySpark instalado
-únicamente para poder **importar** el módulo bajo prueba, no para ejecutar
-Spark de verdad. Todas las dependencias reales de Spark (``obtener_spark``,
-``leer_csv``, ``transformar_ventas``) se sustituyen por dobles (fakes)
-simples que no requieren un cluster ni una SparkSession real.
+``run()`` orquesta llamadas a la capa Spark (``obtener_spark``, ``leer_csv``,
+``filtrar_filas_validas``, ``transformar_ventas``). Aquí se sustituyen todas por
+dobles (fakes) simples, de modo que NO se necesita un ``SparkContext`` activo ni
+una SparkSession real: se prueba el FLUJO de control (orden de llamadas,
+propagación de errores, valor de retorno), no la lógica de Spark en sí (esa se
+cubre en ``test_pipeline_ventas.py`` con Spark real).
 
-Verificado empíricamente en este entorno (sin PySpark instalado en el
-``.venv`` del proyecto): intentar `import jobs.ventas_diarias` falla con
-``ModuleNotFoundError: No module named 'pyspark'``. Por eso este archivo usa
-``pytest.importorskip("pyspark")`` para saltarse limpiamente aquí y queda
-listo para ejecutarse en CI (donde sí está instalado PySpark).
+``jobs/ventas_diarias.py`` importa ``utilities`` (que a su vez importa PySpark),
+así que importar el módulo bajo prueba requiere que PySpark esté instalado —pero
+NO que haya una sesión activa, porque ya no se construye ninguna expresión de
+Spark a nivel de módulo—. En el ``.venv`` local sin PySpark, ``importorskip``
+salta este archivo; en CI (con PySpark) se ejecuta con los dobles.
 """
 
 from __future__ import annotations
@@ -21,7 +20,7 @@ import pytest
 
 pytest.importorskip(
     "pyspark",
-    reason="jobs.ventas_diarias importa pyspark.sql.functions a nivel de módulo",
+    reason="jobs.ventas_diarias importa utilities, que depende de PySpark",
 )
 
 import jobs.ventas_diarias as job  # noqa: E402
@@ -29,16 +28,7 @@ from common.validaciones import COLUMNAS_ESPERADAS  # noqa: E402
 
 
 class FakeDataFrame:
-    """Doble mínimo que soporta los métodos que invoca ``run()``.
-
-    No evalúa condiciones de Spark de verdad: ``filter`` simplemente ignora
-    la condición recibida y devuelve otro fake con el conteo configurado.
-    Esto es intencional y suficiente para probar el FLUJO de control de
-    ``run()`` (orden de llamadas, propagación de errores, valor de retorno);
-    la corrección de la condición de filtrado en sí (cantidad>0 y
-    precio_unitario>=0) se prueba con Spark real en las pruebas de
-    integración (``test_pipeline_ventas.py``), no aquí.
-    """
+    """Doble mínimo que soporta los métodos que invoca ``run()``."""
 
     def __init__(self, columns: list[str], count_valor: int = 0) -> None:
         self.columns = columns
@@ -49,9 +39,6 @@ class FakeDataFrame:
 
     def cache(self) -> FakeDataFrame:
         self.cache_llamado = True
-        return self
-
-    def filter(self, _condicion: object) -> FakeDataFrame:
         return self
 
     def count(self) -> int:
@@ -67,11 +54,15 @@ class FakeDataFrame:
 
 class TestRunColumnasFaltantes:
     def test_lanza_value_error_si_faltan_columnas(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        columnas_incompletas = ["id_venta", "fecha", "producto"]
-        fake_df = FakeDataFrame(columns=columnas_incompletas)
+        fake_df = FakeDataFrame(columns=["id_venta", "fecha", "producto"])
 
         monkeypatch.setattr(job, "obtener_spark", lambda app_name: object())
         monkeypatch.setattr(job, "leer_csv", lambda spark, ruta: fake_df)
+        monkeypatch.setattr(
+            job,
+            "filtrar_filas_validas",
+            lambda df: pytest.fail("filtrar_filas_validas no debería llamarse si faltan columnas"),
+        )
         monkeypatch.setattr(
             job,
             "transformar_ventas",
@@ -84,16 +75,16 @@ class TestRunColumnasFaltantes:
 
 class TestRunCaminoFeliz:
     def test_retorna_numero_de_filas_procesadas(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # 10 filas leídas, 8 válidas tras el filtrado.
         fake_ventas = FakeDataFrame(columns=list(COLUMNAS_ESPERADAS), count_valor=10)
-        # Dos filas descartadas por la condición de validación (cantidad<=0 o
-        # precio_unitario<0): 10 leídas, 8 válidas.
         fake_ventas_validas = FakeDataFrame(columns=list(COLUMNAS_ESPERADAS), count_valor=8)
-        fake_resultado = FakeDataFrame(columns=[*COLUMNAS_ESPERADAS, "importe_total", "categoria"])
-        fake_resultado._count_valor = 8
+        fake_resultado = FakeDataFrame(
+            columns=[*COLUMNAS_ESPERADAS, "importe_total", "categoria"], count_valor=8
+        )
 
-        monkeypatch.setattr(fake_ventas, "filter", lambda _condicion: fake_ventas_validas)
         monkeypatch.setattr(job, "obtener_spark", lambda app_name: object())
         monkeypatch.setattr(job, "leer_csv", lambda spark, ruta: fake_ventas)
+        monkeypatch.setattr(job, "filtrar_filas_validas", lambda df: fake_ventas_validas)
         monkeypatch.setattr(job, "transformar_ventas", lambda df: fake_resultado)
 
         total = job.run(ruta_csv="ruta/no/usada.csv")
@@ -106,9 +97,7 @@ class TestRunCaminoFeliz:
     def test_usa_ruta_csv_indicada_al_leer(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """``run(ruta_csv=...)`` debe propagar la ruta recibida a ``leer_csv``."""
         fake_ventas = FakeDataFrame(columns=list(COLUMNAS_ESPERADAS), count_valor=1)
-        monkeypatch.setattr(fake_ventas, "filter", lambda _condicion: fake_ventas)
         fake_resultado = FakeDataFrame(columns=list(COLUMNAS_ESPERADAS), count_valor=1)
-
         rutas_recibidas: list[str] = []
 
         def fake_leer_csv(spark: object, ruta: str) -> FakeDataFrame:
@@ -117,6 +106,7 @@ class TestRunCaminoFeliz:
 
         monkeypatch.setattr(job, "obtener_spark", lambda app_name: object())
         monkeypatch.setattr(job, "leer_csv", fake_leer_csv)
+        monkeypatch.setattr(job, "filtrar_filas_validas", lambda df: fake_ventas)
         monkeypatch.setattr(job, "transformar_ventas", lambda df: fake_resultado)
 
         job.run(ruta_csv="mi/ruta/personalizada.csv")
