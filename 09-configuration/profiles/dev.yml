@@ -1,0 +1,6 @@
+# Perfil de entorno: desarrollo
+entorno: dev
+catalogo: dev
+ruta_datos: 08-sample-data/csv/ventas.csv
+notificaciones:
+  email: ""

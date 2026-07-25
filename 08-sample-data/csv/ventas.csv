@@ -1,0 +1,11 @@
+id_venta,fecha,producto,cantidad,precio_unitario,pais
+1,2026-01-05,  teclado  mecanico ,2,25.50,PE
+2,2026-01-05,monitor,1,200.00,PE
+3,2026-01-06,mouse,5,12.00,CL
+4,2026-01-06,cable hdmi,10,3.00,CL
+5,2026-01-07,laptop,1,950.00,PE
+6,2026-01-07,adaptador usb,3,8.50,CO
+7,2026-01-08,webcam,2,45.00,CL
+8,2026-01-08,silla ergonomica,1,120.00,PE
+9,2026-01-09,memoria usb,4,6.00,CO
+10,2026-01-09,impresora,1,180.00,PE
