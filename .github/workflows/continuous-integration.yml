@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Databricks CLI
-        uses: databricks/setup-cli@v0.221.1 # fijar a SHA en producción
+        uses: databricks/setup-cli@v1.9.0 # fijar a SHA en producción
 
       - name: Deploy bundle (dev)
         env:
