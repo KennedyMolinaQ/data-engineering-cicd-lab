@@ -30,7 +30,7 @@ resources:
       environments:
         - environment_key: default
           spec:
-            client: "1"
+            client: "3"
 
       email_notifications:
         on_failure:
