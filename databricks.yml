@@ -27,10 +27,14 @@ variables:
     default: ""
   ruta_datos:
     description: >-
-      Ruta al CSV de ventas que procesa ventas_job (parámetro --ruta-csv del
-      spark_python_task). Por entorno: en dev usa el dataset de muestra del
-      repo; en prod apunta al volumen de Unity Catalog, alineado con
-      09-configuration/profiles/prod.yml.
+      Ruta (relativa) al CSV de ventas que procesa ventas_job (parámetro
+      --ruta-csv del spark_python_task). Es relativa a propósito: el bundle
+      sincroniza 08-sample-data/ a la carpeta de archivos de CADA target, y el
+      job la resuelve a absoluta en tiempo de ejecución. Así cada ambiente lee
+      AUTOMÁTICAMENTE su propia copia (dev -> .../dev/files/..., prod ->
+      .../prod/files/...) sin necesidad de crear volúmenes manualmente. En un
+      entorno real, prod apuntaría a un Volumen de Unity Catalog
+      (p. ej. /Volumes/prod/ventas/entrada/ventas.csv).
     default: 08-sample-data/csv/ventas.csv
 
 targets:
@@ -45,7 +49,10 @@ targets:
     mode: production
     variables:
       catalogo: prod
-      # Alineado con 09-configuration/profiles/prod.yml (ruta_datos).
-      ruta_datos: /Volumes/prod/ventas/entrada/ventas.csv
+      # Misma ruta relativa que dev: el runtime la resuelve a absoluta contra la
+      # carpeta de archivos del target prod, así prod lee su propia copia
+      # sincronizada automáticamente. En un entorno real se cambiaría por un
+      # Volumen de Unity Catalog (ver descripción de la variable arriba).
+      ruta_datos: 08-sample-data/csv/ventas.csv
       # notification_email NO se fija aquí: se inyecta desde CD vía
       # BUNDLE_VAR_notification_email (ver comentario en la variable arriba).
