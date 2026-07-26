@@ -35,20 +35,10 @@ class FakeDataFrame:
     def __init__(self, columns: list[str], count_valor: int = 0) -> None:
         self.columns = columns
         self._count_valor = count_valor
-        self.cache_llamado = False
-        self.unpersist_llamado = False
         self.show_llamado = False
-
-    def cache(self) -> FakeDataFrame:
-        self.cache_llamado = True
-        return self
 
     def count(self) -> int:
         return self._count_valor
-
-    def unpersist(self) -> FakeDataFrame:
-        self.unpersist_llamado = True
-        return self
 
     def show(self, *args: object, **kwargs: object) -> None:
         self.show_llamado = True
@@ -92,8 +82,6 @@ class TestRunCaminoFeliz:
         total = job.run(ruta_csv="ruta/no/usada.csv")
 
         assert total == 8
-        assert fake_ventas.cache_llamado is True
-        assert fake_ventas.unpersist_llamado is True
         assert fake_resultado.show_llamado is True
 
     def test_usa_ruta_csv_indicada_al_leer(self, monkeypatch: pytest.MonkeyPatch) -> None:
