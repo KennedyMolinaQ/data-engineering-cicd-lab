@@ -1,0 +1,58 @@
+# Databricks Asset Bundle — raíz del bundle.
+#
+# Se ubica en la raíz del repositorio para que el `sync` incluya el código de
+# `03-data-pipeline`. Los recursos (jobs, pipelines) se definen en
+# `06-databricks-deployment/resources/`.
+
+bundle:
+  name: data-engineering-cicd-lab
+
+include:
+  - 06-databricks-deployment/resources/*.yml
+
+variables:
+  catalogo:
+    description: Catálogo Unity destino
+    default: dev
+  notification_email:
+    description: >-
+      Email para notificaciones del job. Se deja vacío a propósito en este
+      archivo: para el target "prod" NO se debe hardcodear aquí un email real.
+      El workflow de CD (.github/workflows/continuous-deployment.yml) lo
+      inyecta en tiempo de deploy mediante la variable de entorno
+      `BUNDLE_VAR_notification_email` (leída automáticamente por el Databricks
+      CLI como valor de esta variable), tomada de la variable de Environment
+      "prod" NOTIFICATION_EMAIL en GitHub. Así se evita tanto un email vacío
+      en producción como un email hardcodeado en el repo.
+    default: ""
+  ruta_datos:
+    description: >-
+      Ruta (relativa) al CSV de ventas que procesa ventas_job (parámetro
+      --ruta-csv del spark_python_task). Es relativa a propósito: el bundle
+      sincroniza 08-sample-data/ a la carpeta de archivos de CADA target, y el
+      job la resuelve a absoluta en tiempo de ejecución. Así cada ambiente lee
+      AUTOMÁTICAMENTE su propia copia (dev -> .../dev/files/..., prod ->
+      .../prod/files/...) sin necesidad de crear volúmenes manualmente. En un
+      entorno real, prod apuntaría a un Volumen de Unity Catalog
+      (p. ej. /Volumes/prod/ventas/entrada/ventas.csv).
+    default: 08-sample-data/csv/ventas.csv
+
+targets:
+  dev:
+    mode: development
+    default: true
+    variables:
+      catalogo: dev
+      ruta_datos: 08-sample-data/csv/ventas.csv
+
+  prod:
+    mode: production
+    variables:
+      catalogo: prod
+      # Misma ruta relativa que dev: el runtime la resuelve a absoluta contra la
+      # carpeta de archivos del target prod, así prod lee su propia copia
+      # sincronizada automáticamente. En un entorno real se cambiaría por un
+      # Volumen de Unity Catalog (ver descripción de la variable arriba).
+      ruta_datos: 08-sample-data/csv/ventas.csv
+      # notification_email NO se fija aquí: se inyecta desde CD vía
+      # BUNDLE_VAR_notification_email (ver comentario en la variable arriba).

@@ -1,0 +1,18 @@
+# Reglas de linting del proyecto (alineadas con pyproject.toml).
+line-length = 100
+target-version = "py311"
+src = ["03-data-pipeline/src", "09-configuration", "04-unit-tests"]
+
+[lint]
+select = [
+    "E",   # pycodestyle (errores)
+    "F",   # pyflakes (variables/imports sin uso, redefiniciones)
+    "I",   # isort (orden de imports)
+    "UP",  # pyupgrade (modernización de sintaxis)
+    "B",   # flake8-bugbear (bugs probables)
+    "SIM", # flake8-simplify (código más simple)
+    "N",   # pep8-naming (convenciones de nombres)
+]
+
+[lint.isort]
+known-first-party = ["common", "utilities", "jobs"]

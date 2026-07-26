@@ -1,0 +1,37 @@
+# Definición del Job "Ventas Diarias" como código.
+# Se incluye desde el databricks.yml de la raíz.
+
+resources:
+  jobs:
+    ventas_job:
+      name: "[${bundle.target}] Ventas Diarias"
+
+      tasks:
+        - task_key: procesar_ventas
+          # Cómputo serverless: la tarea referencia el entorno declarado abajo
+          # (Free Edition no permite crear clusters propios).
+          environment_key: default
+          spark_python_task:
+            # Las rutas relativas en un recurso se resuelven respecto a la
+            # UBICACIÓN DE ESTE ARCHIVO (06-databricks-deployment/resources/),
+            # no respecto a la raíz del bundle. Por eso se sube dos niveles
+            # hasta la raíz del repo y de ahí a 03-data-pipeline/.
+            python_file: ../../03-data-pipeline/src/jobs/ventas_diarias.py
+            # Parametriza la ruta de datos por entorno (ver variable
+            # `ruta_datos` en databricks.yml, alineada con
+            # 09-configuration/profiles/*.yml). El script ventas_diarias.py
+            # parsea `--ruta-csv` con argparse; si no se pasa, usa RUTA_VENTAS
+            # (datos de muestra del repo) por defecto.
+            parameters: ["--ruta-csv", "${var.ruta_datos}"]
+
+      # Entorno serverless requerido por spark_python_task en Free Edition
+      # (no se definen clusters propios). `client` es la versión del entorno
+      # serverless.
+      environments:
+        - environment_key: default
+          spec:
+            client: "3"
+
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}

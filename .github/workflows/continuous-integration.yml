@@ -1,0 +1,55 @@
+name: Continuous Integration (develop)
+
+# Al integrar en develop: revalida y despliega al entorno de desarrollo, ejecutando el job.
+on:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Revalidar (incluye bundle validate --target dev)
+    uses: ./.github/workflows/pull-request-validation.yml
+    with:
+      run_bundle_validate: true
+    # Mínimo privilegio: se pasan solo los secretos que el workflow reutilizable
+    # necesita, en vez de `secrets: inherit`.
+    # Nota: DATABRICKS_HOST/DATABRICKS_TOKEN deben ser secretos de
+    # repositorio/organización (no ligados a un Environment de GitHub), ya que
+    # un job que solo invoca un reusable workflow (`uses:`) no admite la clave
+    # `environment:` y por tanto no podría resolver secretos de Environment
+    # para reenviarlos. El environment "dev" se aplica dentro del workflow
+    # reutilizable, en el job bundle-validate.
+    secrets:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
+  deploy-dev:
+    name: Deploy a Databricks (dev) + Run
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Databricks CLI
+        uses: databricks/setup-cli@v1.9.0 # fijar a SHA en producción
+
+      - name: Deploy bundle (dev)
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: databricks bundle deploy --target dev
+
+      - name: Ejecutar job ventas_job (dev)
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: databricks bundle run ventas_job --target dev

@@ -1,0 +1,74 @@
+name: Continuous Deployment (main)
+
+# Al liberar en main: validaciones finales, deploy a producción, ejecuta el pipeline
+# y publica artefactos del release.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validaciones finales (incluye bundle validate --target prod, fail-fast)
+    uses: ./.github/workflows/pull-request-validation.yml
+    with:
+      run_bundle_validate_prod: true
+    # Mínimo privilegio: se pasan solo los secretos que el workflow reutilizable
+    # necesita, en vez de `secrets: inherit`. Deben ser secretos de
+    # repositorio/organización (ver nota equivalente en continuous-integration.yml),
+    # ya que un job que solo invoca un reusable workflow no admite `environment:`.
+    secrets:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
+  deploy-prod:
+    name: Deploy a Databricks (prod) + Run
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: prod          # puede exigir 'required reviewers' como gate manual
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Databricks CLI
+        uses: databricks/setup-cli@v1.9.0 # fijar a SHA en producción
+
+      # `databricks bundle validate --target prod` ya se ejecutó de forma
+      # fail-fast en el job `validate` (bundle-validate-prod del workflow
+      # reutilizable, gated por environment "prod"), antes de llegar aquí.
+      # Se evita repetirlo para no duplicar el uso de secretos de prod.
+
+      - name: Deploy bundle (prod)
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          # Inyecta el email de notificaciones de prod sin hardcodearlo en
+          # databricks.yml (que solo define un default vacío). Configúralo como
+          # variable del Environment "prod" en GitHub
+          # (Settings > Environments > prod > Variables > NOTIFICATION_EMAIL).
+          # El CLI de Databricks lee automáticamente cualquier env var con
+          # prefijo BUNDLE_VAR_ como valor de la variable del bundle homónima.
+          BUNDLE_VAR_notification_email: ${{ vars.NOTIFICATION_EMAIL }}
+        run: databricks bundle deploy --target prod
+
+      - name: Ejecutar pipeline (prod)
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: databricks bundle run ventas_job --target prod
+
+      - name: Publicar artefactos del release
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ github.sha }}
+          path: |
+            coverage.xml
+            06-databricks-deployment/**
+          if-no-files-found: ignore
