@@ -9,8 +9,11 @@ resources:
       tasks:
         - task_key: procesar_ventas
           spark_python_task:
-            # Ruta relativa a la raíz del bundle (raíz del repo).
-            python_file: 03-data-pipeline/src/jobs/ventas_diarias.py
+            # Las rutas relativas en un recurso se resuelven respecto a la
+            # UBICACIÓN DE ESTE ARCHIVO (06-databricks-deployment/resources/),
+            # no respecto a la raíz del bundle. Por eso se sube dos niveles
+            # hasta la raíz del repo y de ahí a 03-data-pipeline/.
+            python_file: ../../03-data-pipeline/src/jobs/ventas_diarias.py
             # Parametriza la ruta de datos por entorno (ver variable
             # `ruta_datos` en databricks.yml, alineada con
             # 09-configuration/profiles/*.yml). El script ventas_diarias.py
