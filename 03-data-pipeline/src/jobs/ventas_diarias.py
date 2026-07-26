@@ -74,9 +74,9 @@ def run(ruta_csv: str | None = None) -> int:
             f"Faltan columnas obligatorias en la fuente de ventas: {columnas_faltantes}"
         )
 
-    # Se cachea porque se necesitan dos conteos (total y válidas) sobre la
-    # misma lectura, para poder loggear cuántas filas inválidas se descartan.
-    ventas.cache()
+    # No se usa cache(): PERSIST no está soportado en cómputo serverless
+    # (Databricks Free Edition). El dataset del laboratorio es pequeño, así que
+    # dos conteos (total y válidas) sobre la lectura son baratos.
     ventas_validas = filtrar_filas_validas(ventas)
     filas_descartadas = ventas.count() - ventas_validas.count()
     if filas_descartadas:
@@ -84,7 +84,6 @@ def run(ruta_csv: str | None = None) -> int:
             "Descartando %d filas inválidas (cantidad<=0 o precio_unitario<0)",
             filas_descartadas,
         )
-    ventas.unpersist()
 
     resultado = transformar_ventas(ventas_validas)
 
