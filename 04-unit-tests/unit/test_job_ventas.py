@@ -16,6 +16,8 @@ salta este archivo; en CI (con PySpark) se ejecuta con los dobles.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 pytest.importorskip(
@@ -95,7 +97,13 @@ class TestRunCaminoFeliz:
         assert fake_resultado.show_llamado is True
 
     def test_usa_ruta_csv_indicada_al_leer(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """``run(ruta_csv=...)`` debe propagar la ruta recibida a ``leer_csv``."""
+        """``run(ruta_csv=...)`` debe propagar una ruta absoluta tal cual a ``leer_csv``.
+
+        Se usa una ruta absoluta a propósito: ``run`` solo resuelve rutas
+        relativas contra la raíz de archivos, así que una absoluta se pasa sin
+        cambios y la aserción es estable en cualquier sistema operativo.
+        """
+        ruta_abs = str(Path.cwd() / "mi" / "ruta" / "personalizada.csv")
         fake_ventas = FakeDataFrame(columns=list(COLUMNAS_ESPERADAS), count_valor=1)
         fake_resultado = FakeDataFrame(columns=list(COLUMNAS_ESPERADAS), count_valor=1)
         rutas_recibidas: list[str] = []
@@ -109,6 +117,6 @@ class TestRunCaminoFeliz:
         monkeypatch.setattr(job, "filtrar_filas_validas", lambda df: fake_ventas)
         monkeypatch.setattr(job, "transformar_ventas", lambda df: fake_resultado)
 
-        job.run(ruta_csv="mi/ruta/personalizada.csv")
+        job.run(ruta_csv=ruta_abs)
 
-        assert rutas_recibidas == ["mi/ruta/personalizada.csv"]
+        assert rutas_recibidas == [ruta_abs]
