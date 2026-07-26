@@ -8,6 +8,9 @@ resources:
 
       tasks:
         - task_key: procesar_ventas
+          # Cómputo serverless: la tarea referencia el entorno declarado abajo
+          # (Free Edition no permite crear clusters propios).
+          environment_key: default
           spark_python_task:
             # Las rutas relativas en un recurso se resuelven respecto a la
             # UBICACIÓN DE ESTE ARCHIVO (06-databricks-deployment/resources/),
@@ -21,8 +24,13 @@ resources:
             # (datos de muestra del repo) por defecto.
             parameters: ["--ruta-csv", "${var.ruta_datos}"]
 
-      # En Free Edition se usa cómputo serverless: no se definen clusters propios.
-      # Si tu workspace requiere un cluster, se añadiría aquí un job_cluster.
+      # Entorno serverless requerido por spark_python_task en Free Edition
+      # (no se definen clusters propios). `client` es la versión del entorno
+      # serverless.
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
 
       email_notifications:
         on_failure:
